@@ -3,75 +3,114 @@ import java.util.*;
 public class HanoiBFS {
 
     static class State {
-        int[] pegs;
+        List<List<Integer>> pegs;
 
-        State(int[] p) {
-            pegs = Arrays.copyOf(p, p.length);
+        State(List<List<Integer>> pegs) {
+            this.pegs = pegs;
         }
 
+        // Create a deep copy
+        State copy() {
+            List<List<Integer>> newPegs = new ArrayList<>();
+            for (List<Integer> peg : pegs) {
+                newPegs.add(new ArrayList<>(peg));
+            }
+            return new State(newPegs);
+        }
+
+        // Serialize for hashing
+        String encode() {
+            return pegs.toString();
+        }
+
+        // Check if goal state
         boolean isGoal() {
-            return pegs[0] == 2 && pegs[1] == 2 && pegs[2] == 2;
+            return pegs.get(0).isEmpty() && pegs.get(1).isEmpty()
+                    && pegs.get(2).equals(Arrays.asList(3, 2, 1));
         }
 
-        List<State> getSuccessors() {
-            List<State> next = new ArrayList<>();
-            int[] top = {-1, -1, -1};
-
-            for (int d = pegs.length - 1; d >= 0; d--) {
-                top[pegs[d]] = d;
-            }
-
-            for (int from = 0; from < 3; from++) {
-                if (top[from] == -1) continue;
-                for (int to = 0; to < 3; to++) {
-                    if (from == to) continue;
-                    if (top[to] == -1 || top[to] > top[from]) {
-                        State s = new State(pegs);
-                        s.pegs[top[from]] = to;
-                        next.add(s);
-                    }
-                }
-            }
-            return next;
+        @Override
+        public String toString() {
+            return pegs.toString();
         }
-
-        @Override public boolean equals(Object o) {
-            return o instanceof State && Arrays.equals(pegs, ((State)o).pegs);
-        }
-        @Override public int hashCode() { return Arrays.hashCode(pegs); }
-        @Override public String toString() { return Arrays.toString(pegs); }
     }
 
-    public static List<State> bfs(State start) {
-        Queue<List<State>> q = new LinkedList<>();
-        Set<State> visited = new HashSet<>();
+    // Generate all valid next moves
+    static List<State> getNeighbors(State s) {
+        List<State> neighbors = new ArrayList<>();
 
-        q.add(Arrays.asList(start));
-        visited.add(start);
+        for (int from = 0; from < 3; from++) {
+            if (s.pegs.get(from).isEmpty()) continue;
 
-        while (!q.isEmpty()) {
-            List<State> path = q.poll();
-            State s = path.get(path.size() - 1);
+            int disk = s.pegs.get(from).get(s.pegs.get(from).size() - 1);
 
-            if (s.isGoal()) return path;
+            for (int to = 0; to < 3; to++) {
+                if (from == to) continue;
 
-            for (State nxt : s.getSuccessors()) {
-                if (!visited.contains(nxt)) {
-                    visited.add(nxt);
-                    List<State> np = new ArrayList<>(path);
-                    np.add(nxt);
-                    q.add(np);
+                if (s.pegs.get(to).isEmpty()
+                        || s.pegs.get(to).get(s.pegs.get(to).size() - 1) > disk) {
+
+                    State newState = s.copy();
+                    newState.pegs.get(from).remove(newState.pegs.get(from).size() - 1);
+                    newState.pegs.get(to).add(disk);
+                    neighbors.add(newState);
                 }
             }
         }
-        return null;
+
+        return neighbors;
+    }
+
+    // BFS search
+    static List<State> bfs(State start) {
+
+        Queue<List<State>> queue = new LinkedList<>();
+        Set<String> visited = new HashSet<>();
+
+        queue.add(Arrays.asList(start));
+        visited.add(start.encode());
+
+        while (!queue.isEmpty()) {
+            List<State> path = queue.poll();
+            State curr = path.get(path.size() - 1);
+
+            if (curr.isGoal()) {
+                return path;
+            }
+
+            for (State next : getNeighbors(curr)) {
+                String code = next.encode();
+                if (!visited.contains(code)) {
+                    visited.add(code);
+
+                    List<State> newPath = new ArrayList<>(path);
+                    newPath.add(next);
+
+                    queue.add(newPath);
+                }
+            }
+        }
+
+        return null; // no solution (should not happen)
     }
 
     public static void main(String[] args) {
-        State start = new State(new int[]{0, 0, 0});
-        List<State> result = bfs(start);
 
-        System.out.println("BFS Solution:");
-        result.forEach(System.out::println);
+        List<List<Integer>> pegs = new ArrayList<>();
+        pegs.add(new ArrayList<>(Arrays.asList(3, 2, 1))); // peg A
+        pegs.add(new ArrayList<>());                       // peg B
+        pegs.add(new ArrayList<>());                       // peg C
+
+        State start = new State(pegs);
+
+        List<State> solution = bfs(start);
+
+        System.out.println("Moves required: " + (solution.size() - 1));
+        int step = 0;
+        for (State st : solution) {
+            System.out.println((step++) + ": " + st);
+        }
     }
 }
+
+
