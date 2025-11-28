@@ -3,83 +3,122 @@ import java.util.*;
 public class HanoiAStar {
 
     static class State {
-        int[] pegs;
+        List<List<Integer>> pegs;
 
-        State(int[] p) {
-            pegs = Arrays.copyOf(p, p.length);
+        State(List<List<Integer>> pegs) {
+            this.pegs = pegs;
+        }
+
+        State copy() {
+            List<List<Integer>> newPegs = new ArrayList<>();
+            for (List<Integer> peg : pegs) {
+                newPegs.add(new ArrayList<>(peg));
+            }
+            return new State(newPegs);
         }
 
         boolean isGoal() {
-            return pegs[0] == 2 && pegs[1] == 2 && pegs[2] == 2;
+            return pegs.get(0).isEmpty() &&
+                   pegs.get(1).isEmpty() &&
+                   pegs.get(2).equals(Arrays.asList(3, 2, 1));
         }
 
-        List<State> getSuccessors() {
-            List<State> next = new ArrayList<>();
-            int[] top = {-1, -1, -1};
+        String encode() {
+            return pegs.toString();
+        }
 
-            for (int d = pegs.length - 1; d >= 0; d--) {
-                top[pegs[d]] = d;
-            }
+        @Override
+        public String toString() {
+            return pegs.toString();
+        }
+    }
 
-            for (int from = 0; from < 3; from++) {
-                if (top[from] == -1) continue;
-                for (int to = 0; to < 3; to++) {
-                    if (from == to) continue;
-                    if (top[to] == -1 || top[to] > top[from]) {
-                        State s = new State(pegs);
-                        s.pegs[top[from]] = to;
-                        next.add(s);
-                    }
+    // Admissible heuristic:
+    // Count how many disks are NOT on the goal peg (peg 2)
+    static int heuristic(State s) {
+        int goalSize = s.pegs.get(2).size();
+        return 3 - goalSize; // 3 disks total
+    }
+
+    // Generate neighbor states
+    static List<State> getNeighbors(State s) {
+        List<State> neighbors = new ArrayList<>();
+
+        for (int from = 0; from < 3; from++) {
+            if (s.pegs.get(from).isEmpty()) continue;
+
+            int disk = s.pegs.get(from).get(s.pegs.get(from).size() - 1);
+
+            for (int to = 0; to < 3; to++) {
+                if (from == to) continue;
+
+                if (s.pegs.get(to).isEmpty() ||
+                    s.pegs.get(to).get(s.pegs.get(to).size() - 1) > disk) {
+
+                    State newState = s.copy();
+                    newState.pegs.get(from).remove(newState.pegs.get(from).size() - 1);
+                    newState.pegs.get(to).add(disk);
+                    neighbors.add(newState);
                 }
             }
-            return next;
         }
 
-        @Override public boolean equals(Object o) {
-            return o instanceof State && Arrays.equals(pegs, ((State)o).pegs);
-        }
-        @Override public int hashCode() { return Arrays.hashCode(pegs); }
-        @Override public String toString() { return Arrays.toString(pegs); }
+        return neighbors;
     }
 
-    // Simple heuristic: count disks not on goal peg (peg 2)
-    static int heuristic(State s) {
-        int h = 0;
-        for (int peg : s.pegs)
-            if (peg != 2) h++;
-        return h;
-    }
+    // A* Search
+    static List<State> aStar(State start) {
 
-    public static List<State> aStar(State start) {
-        PriorityQueue<List<State>> pq = new PriorityQueue<>(
-                Comparator.comparingInt(path ->
-                        path.size() + heuristic(path.get(path.size() - 1)))
+        PriorityQueue<List<State>> open = new PriorityQueue<>(
+            Comparator.comparingInt(path -> 
+                path.size() - 1 + heuristic(path.get(path.size() - 1))
+            )
         );
 
-        Set<State> visited = new HashSet<>();
-        pq.add(Arrays.asList(start));
+        Set<String> visited = new HashSet<>();
 
-        while (!pq.isEmpty()) {
-            List<State> path = pq.poll();
-            State s = path.get(path.size() - 1);
+        open.add(Arrays.asList(start));
 
-            if (s.isGoal()) return path;
-            if (!visited.add(s)) continue;
+        while (!open.isEmpty()) {
 
-            for (State nxt : s.getSuccessors()) {
-                List<State> newPath = new ArrayList<>(path);
-                newPath.add(nxt);
-                pq.add(newPath);
+            List<State> path = open.poll();
+            State current = path.get(path.size() - 1);
+
+            if (current.isGoal()) {
+                return path;
+            }
+
+            if (visited.contains(current.encode())) continue;
+            visited.add(current.encode());
+
+            for (State next : getNeighbors(current)) {
+                if (!visited.contains(next.encode())) {
+                    List<State> newPath = new ArrayList<>(path);
+                    newPath.add(next);
+                    open.add(newPath);
+                }
             }
         }
-        return null;
+
+        return null; // should not happen
     }
 
     public static void main(String[] args) {
-        State start = new State(new int[]{0, 0, 0});
-        List<State> result = aStar(start);
 
-        System.out.println("A* Solution:");
-        result.forEach(System.out::println);
+        List<List<Integer>> pegs = new ArrayList<>();
+        pegs.add(new ArrayList<>(Arrays.asList(3, 2, 1))); // start
+        pegs.add(new ArrayList<>());
+        pegs.add(new ArrayList<>()); // goal peg = index 2
+
+        State start = new State(pegs);
+
+        List<State> solution = aStar(start);
+
+        System.out.println("Moves required: " + (solution.size() - 1));
+        int i = 0;
+        for (State s : solution) {
+            System.out.println((i++) + ": " + s);
+        }
     }
 }
+
